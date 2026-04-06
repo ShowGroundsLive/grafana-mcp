@@ -82,6 +82,7 @@ if (TRANSPORT === 'stdio') {
 } else {
   // HTTP mode — used by Claude Code / Claude Desktop (remote via OAuth)
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
 
