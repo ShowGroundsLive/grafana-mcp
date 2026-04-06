@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "3105:3000"
+    volumes:
+      - oauth-data:/data
     environment:
       - TRANSPORT=http
       - PORT=3000
@@ -12,3 +14,6 @@ services:
       - GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_SERVICE_ACCOUNT_TOKEN}
       - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
       - MCP_SERVER_URL=${MCP_SERVER_URL}
+
+volumes:
+  oauth-data:

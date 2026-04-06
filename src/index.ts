@@ -98,7 +98,8 @@ if (TRANSPORT === 'stdio') {
 
     const issuerUrl = new URL(MCP_SERVER_URL || `http://localhost:${PORT}`);
     const mcpServerUrl = new URL(`${issuerUrl.origin}/mcp`);
-    const provider = new SimpleOAuthProvider(MCP_AUTH_TOKEN, 'Grafana MCP');
+    const persistPath = process.env.OAUTH_STATE_PATH || '/data/oauth-state.json';
+    const provider = new SimpleOAuthProvider(MCP_AUTH_TOKEN, 'Grafana MCP', persistPath);
 
     // Auto-register unknown clients from the /authorize request so cached
     // client_ids from Claude Desktop survive server restarts.

@@ -1,4 +1,6 @@
 import { randomUUID } from "crypto";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { dirname } from "path";
 import type { Response } from "express";
 import type {
   OAuthServerProvider,
@@ -56,12 +58,15 @@ export class SimpleOAuthProvider implements OAuthServerProvider {
   private tokens = new Map<string, IssuedToken>();
   private authToken: string;
   private serverName: string;
+  private persistPath: string | null;
 
   private clients = new Map<string, OAuthClientInformationFull>();
 
-  constructor(authToken: string, serverName = "Grafana MCP") {
+  constructor(authToken: string, serverName = "Grafana MCP", persistPath?: string) {
     this.authToken = authToken;
     this.serverName = serverName;
+    this.persistPath = persistPath || null;
+    this.load();
     this._clientsStore = {
       getClient: async (clientId) => this.clients.get(clientId),
       registerClient: async (client) => {
@@ -71,9 +76,47 @@ export class SimpleOAuthProvider implements OAuthServerProvider {
           client_id_issued_at: Math.floor(Date.now() / 1000),
         };
         this.clients.set(full.client_id, full);
+        this.save();
         return full;
       },
     };
+  }
+
+  private load(): void {
+    if (!this.persistPath) return;
+    try {
+      const data = JSON.parse(readFileSync(this.persistPath, "utf-8"));
+      if (data.tokens) {
+        for (const [k, v] of Object.entries(data.tokens)) {
+          this.tokens.set(k, v as IssuedToken);
+        }
+      }
+      if (data.clients) {
+        for (const [k, v] of Object.entries(data.clients)) {
+          this.clients.set(k, v as OAuthClientInformationFull);
+        }
+      }
+      console.error(`Loaded ${this.tokens.size} tokens and ${this.clients.size} clients from ${this.persistPath}`);
+    } catch {
+      // File doesn't exist yet — that's fine on first run
+    }
+  }
+
+  private save(): void {
+    if (!this.persistPath) return;
+    try {
+      mkdirSync(dirname(this.persistPath), { recursive: true });
+      writeFileSync(
+        this.persistPath,
+        JSON.stringify({
+          tokens: Object.fromEntries(this.tokens),
+          clients: Object.fromEntries(this.clients),
+        }),
+        "utf-8"
+      );
+    } catch (err) {
+      console.error("Failed to persist OAuth state:", err);
+    }
   }
 
   get clientsStore(): OAuthRegisteredClientsStore {
@@ -91,6 +134,7 @@ export class SimpleOAuthProvider implements OAuthServerProvider {
         client_id_issued_at: Math.floor(Date.now() / 1000),
         redirect_uris: [redirectUri],
       });
+      this.save();
     }
   }
 
@@ -203,6 +247,7 @@ export class SimpleOAuthProvider implements OAuthServerProvider {
       scopes: codeData.scopes,
       expiresAt: Math.floor(Date.now() / 1000) + expiresIn,
     });
+    this.save();
 
     return {
       access_token: token,
@@ -243,5 +288,6 @@ export class SimpleOAuthProvider implements OAuthServerProvider {
     request: OAuthTokenRevocationRequest
   ): Promise<void> {
     this.tokens.delete(request.token);
+    this.save();
   }
 }
